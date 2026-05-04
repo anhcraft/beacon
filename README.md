@@ -21,20 +21,31 @@ flowchart LR
 
 **1. GCP Authentication**
 
-Beacon uses [Application Default Credentials (ADC)](https://cloud.google.com/docs/authentication/application-default-credentials) to authenticate with GCP Pub/Sub. Authenticate before running Beacon:
+- Option 1: Using [Application Default Credentials (ADC)](https://cloud.google.com/docs/authentication/application-default-credentials)
 
 ```bash
 gcloud auth application-default login
 ```
 
-Alternatively, set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of a service account key file:
+- Option 2: set `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of a service account key file:
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
 ```
 
+**NOTE: The credentials must have access to each Pub/Sub subscription declared in the configuration**
+
+For example, to grant IAM policy to a specific subscription ID, execute the following command after replacing `my-subscription-id`, `my-project-id` and `my-service-account` placeholders
+
+```bash
+gcloud pubsub subscriptions add-iam-policy-binding my-subscription-id \
+  --project="my-project-id" \
+  --member="serviceAccount:my-service-account@my-project-id.iam.gserviceaccount.com" \
+  --role="roles/pubsub.subscriber"
+```
+
 **2. Create a configuration file**
 
-Create a `config.yaml` file. See the [Configuration](#configuration) section below for all available options.
+Create a `config.yml` file. See the [Configuration](#configuration) section below for all available options.
 
 **3. Build the binary (if running from source)**
 
@@ -53,27 +64,25 @@ Grant Docker access to the user running Beacon, then run the binary with your co
 sudo usermod -aG docker $USER
 newgrp docker
 
-./beacon -config config.yaml
+./beacon -config config.yml
 ```
 
 - Option 2: Run as root
 ```bash
-sudo ./beacon -config config.yaml
+sudo ./beacon -config config.yml
 ```
 
 ---
 
 ### Docker
 
-Beacon must have access to the host's Docker socket (Docker-outside-of-Docker). Mount the socket and your config file into the container:
-
 ```bash
 docker run \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $HOME/.docker:/root/.docker:ro \
-  -v ./config.yaml:/app/config.yaml:ro \
-  beacon -config /app/config.yaml
+  -v ./config.yml:/app/config.yml:ro \
+  ghcr.io/anhcraft/beacon:main -config /app/config.yml
 ```
+
+View all prebuilt images at: https://github.com/anhcraft/beacon/pkgs/container/beacon
 
 ## Configuration
 ```yaml
@@ -83,6 +92,7 @@ gcp-project-id: "your-project-id"
 # Define multiple consumers
 consumers:
   my-topic-consumer: # Any ID you want
+    # Your service account must have access to this subscription
     pubsub-subscription-id: "your-subscription-id"
 
     deduplication:
